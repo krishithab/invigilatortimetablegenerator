@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invigilation Timetable System</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .error-message {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .status-complete {
+            background-color: #d4edda !important;
+        }
+        .status-incomplete {
+            background-color: #f8d7da !important;
+        }
+        .upload-area {
+            border: 2px dashed #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <!-- Error Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show error-message" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h1 class="h4 mb-0">Invigilation Timetable System</h1>
+            </div>
+            
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="upload-area" onclick="document.getElementById('exam_file').click()">
+                                <input type="file" id="exam_file" name="exam_file" accept=".csv" class="d-none" required>
+                                <i class="bi bi-file-earmark-spreadsheet fs-1"></i>
+                                <h5 class="mt-2">Upload Exam Schedule</h5>
+                                <p class="text-muted small">CSV file with exam details</p>
+                                <span id="exam-file-name" class="text-primary fw-bold"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="upload-area" onclick="document.getElementById('invigilator_file').click()">
+                                <input type="file" id="invigilator_file" name="invigilator_file" accept=".csv" class="d-none" required>
+                                <i class="bi bi-people-fill fs-1"></i>
+                                <h5 class="mt-2">Upload Invigilators</h5>
+                                <p class="text-muted small">CSV file with teacher availability</p>
+                                <span id="invigilator-file-name" class="text-primary fw-bold"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-gear"></i> Generate Schedule
+                        </button>
+                    </div>
+                </form>
+
+                <!-- File Requirements Section -->
+                <div class="mt-4">
+                    <div class="accordion" id="requirementsAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">
+                                    <i class="bi bi-info-circle me-2"></i> File Format Requirements
+                                </button>
+                            </h2>
+                            <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#requirementsAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6>Exam Schedule CSV:</h6>
+                                            <pre>day,date,subject,form,start_time,duration
+Monday,01-Jan,Mathematics,5A,09:00,2
+Tuesday,02-Jan,Science,5B,11:00,1.5</pre>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6>Invigilators CSV:</h6>
+                                            <pre>initial,max_hours,monday,tuesday,wednesday,thursday,friday
+TCH1,10,09:00-12:00,10:00-12:00,09:00-11:00,,
+TCH2,8,,09:00-11:00,13:00-15:00,10:00-12:00,09:00-11:00</pre>
+                                        </div>
+                                    </div>
+                                    <a href="{{ url_for('sample_files') }}" class="btn btn-sm btn-outline-primary mt-2">
+                                        <i class="bi bi-download"></i> Download Sample Files
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if results %}
+                <!-- Results Section -->
+                <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h2 class="h5">Invigilation Schedule</h2>
+                        <div>
+                            <a href="{{ url_for('download') }}" class="btn btn-success btn-sm">
+                                <i class="bi bi-download"></i> Download Excel
+                            </a>
+                            <a href="{{ url_for('sample_files') }}" class="btn btn-outline-secondary btn-sm ms-2">
+                                <i class="bi bi-file-earmark-arrow-down"></i> Sample Files
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">Total Exams</small>
+                                    <h6 class="mb-0">{{ total_exams }}</h6>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">Required Invigilators</small>
+                                    <h6 class="mb-0">{{ total_required }}</h6>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">Assigned Invigilators</small>
+                                    <h6 class="mb-0">{{ total_assigned }}</h6>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <small class="text-muted">Assignment Rate</small>
+                                    <h6 class="mb-0">{{ assignment_rate }}%</h6>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Exam Schedule Table -->
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Date</th>
+                                    <th>Subject</th>
+                                    <th>class</th>
+                                    <th>Start Time</th>
+                                    <th>End Time</th>
+                                    <th>Duration (hrs)</th>
+                                    <th>Required</th>
+                                    <th>Assigned</th>
+                                    <th>Invigilators</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for exam in results %}
+                                <tr class="status-{{ 'complete' if exam.assigned >= exam.required else 'incomplete' }}">
+                                    <td>{{ exam.day }}</td>
+                                    <td>{{ exam.date }}</td>
+                                    <td>{{ exam.subject }}</td>
+                                    <td>{{ exam.form }}</td>
+                                    <td>{{ exam.start_time }}</td>
+                                    <td>{{ exam.end_time }}</td>
+                                    <td>{{ exam.duration }}</td>
+                                    <td>{{ exam.required }}</td>
+                                    <td>{{ exam.assigned }}</td>
+                                    <td>{{ exam.invigilators }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if exam.assigned >= exam.required else 'danger' }}">
+                                            {{ 'Complete' if exam.assigned >= exam.required else 'Incomplete' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Invigilator Summary -->
+                    <h5 class="h5 mt-4">Invigilator Summary</h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Initial</th>
+                                    <th>Total Hours</th>
+                                    <th>Assigned Hours</th>
+                                    <th>Remaining Hours</th>
+                                    <th>Assigned Exams</th>
+                                    <th>Weekly Schedule</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inv in invigilator_summary %}
+                                <tr>
+                                    <td>{{ inv.initial }}</td>
+                                    <td>{{ inv.total_hours }}</td>
+                                    <td>{{ inv.assigned_hours }}</td>
+                                    <td class="{{ 'text-danger' if inv.remaining_hours < 0 else '' }}">
+                                        {{ inv.remaining_hours }}
+                                    </td>
+                                    <td>{{ inv.assigned_exams }}</td>
+                                    <td>{{ inv.weekly_schedule }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Form submission handling
+        document.getElementById('uploadForm').addEventListener('submit', function() {
+            const submitBtn = document.querySelector('#uploadForm button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+        });
+
+        // File input handling
+        document.getElementById('exam_file').addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : 'No file selected';
+            document.getElementById('exam-file-name').textContent = fileName;
+        });
+
+        document.getElementById('invigilator_file').addEventListener('change', function() {
+            const fileName = this.files[0] ? this.files[0].name : 'No file selected';
+            document.getElementById('invigilator-file-name').textContent = fileName;
+        });
+
+        // File validation
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.files[0]) {
+                    const fileName = this.files[0].name;
+                    const fileExt = fileName.split('.').pop().toLowerCase();
+                    if (fileExt !== 'csv') {
+                        alert('Please upload only CSV files');
+                        this.value = '';
+                        const nameSpan = this.id === 'exam_file' ? 
+                            document.getElementById('exam-file-name') : 
+                            document.getElementById('invigilator-file-name');
+                        nameSpan.textContent = '';
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
